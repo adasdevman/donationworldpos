@@ -34,34 +34,52 @@ class CPF_Form_Handler {
             }
         }
 
-        // Créer la commande WooCommerce
-        $order = wc_create_order();
+        // Créer la commande en utilisant l'API WooCommerce
+        $order_data = array(
+            'status' => 'pending',
+            'customer_id' => get_current_user_id(),
+            'created_via' => 'donationwc',
+            'customer_note' => '',
+            'billing' => array(),
+        );
+
+        // Préparer les données de facturation
+        foreach ($fields as $field_id => $field) {
+            if (isset($_POST[$field_id])) {
+                $order_data['billing'][$field_id] = sanitize_text_field($_POST[$field_id]);
+            }
+        }
+
+        // Créer la commande via l'API WooCommerce
+        $order = wc_create_order($order_data);
+
+        if (is_wp_error($order)) {
+            wc_add_notice($order->get_error_message(), 'error');
+            return;
+        }
 
         // Ajouter le produit
         $product = wc_get_product($form->product_id);
         if (!$product) {
+            $order->delete(true);
             wc_add_notice('Produit invalide', 'error');
             return;
         }
 
-        $order->add_product($product, 1);
+        try {
+            $order->add_product($product, 1);
+            $order->calculate_totals();
+            $order->save();
 
-        // Définir les informations client
-        $billing_address = array();
-        foreach ($fields as $field_id => $field) {
-            if (isset($_POST[$field_id])) {
-                $billing_address[$field_id] = sanitize_text_field($_POST[$field_id]);
-            }
+            // Rediriger vers le paiement en utilisant l'URL sécurisée
+            $checkout_url = $order->get_checkout_payment_url();
+            wp_redirect($checkout_url);
+            exit;
+
+        } catch (Exception $e) {
+            $order->delete(true);
+            wc_add_notice($e->getMessage(), 'error');
+            return;
         }
-
-        $order->set_address($billing_address, 'billing');
-        
-        // Calculer les totaux et sauvegarder
-        $order->calculate_totals();
-        $order->save();
-
-        // Rediriger vers le paiement
-        wp_redirect($order->get_checkout_payment_url());
-        exit;
     }
 } 

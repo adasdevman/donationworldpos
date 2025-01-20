@@ -31,6 +31,22 @@ function cpf_check_woocommerce() {
     return true;
 }
 
+// Ajouter après la fonction cpf_check_woocommerce()
+
+function cpf_check_compatibility() {
+    // Vérifier si le stockage des commandes haute performance est activé
+    if (get_option('woocommerce_custom_orders_table_enabled') === 'yes') {
+        add_action('admin_notices', function() {
+            ?>
+            <div class="error">
+                <p><?php _e('DonationWC est maintenant compatible avec le stockage des commandes haute performance de WooCommerce.', 'donationwc'); ?></p>
+            </div>
+            <?php
+        });
+    }
+}
+add_action('admin_init', 'cpf_check_compatibility');
+
 // Initialisation du plugin
 function cpf_init() {
     if (!cpf_check_woocommerce()) return;
